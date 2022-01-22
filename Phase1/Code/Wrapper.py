@@ -24,102 +24,35 @@ import scipy.ndimage
 import scipy.signal
 import math
 import matplotlib.pyplot as plt
-import sklearn
+import sklearn.cluster
+import os
 
+def gauss_kernel(size, sigma):
 
-def dnorm(x, mu, sd):
-	return 1 / (np.sqrt(2 * np.pi) * sd) * np.e ** (-np.power((x - mu) / sd, 2) / 2)
-
-
-def gaussian_kernel(size, sigma=1, verbose=False):
-	kernel_1D = np.linspace(-(size // 2), size // 2, size)
-	for i in range(size):
-		kernel_1D[i] = dnorm(kernel_1D[i], 0, sigma)
-	kernel_2D = np.outer(kernel_1D.T, kernel_1D.T)
-
-	kernel_2D *= 1.0 / kernel_2D.max()
-
-	return kernel_2D
-
-
-def convolution(image, kernel, average=False, verbose=False):
-	if len(image.shape) == 3:
-		print("Found 3 Channels : {}".format(image.shape))
-		image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-		print("Converted to Gray Channel. Size : {}".format(image.shape))
-	else:
-		print("Image Shape : {}".format(image.shape))
-
-	print("Kernel Shape : {}".format(kernel.shape))
-
-	if verbose:
-		plt.imshow(image, cmap='gray')
-		plt.title("Image")
-		plt.show()
-
-	image_row, image_col = image.shape
-	kernel_row, kernel_col = kernel.shape
-
-	output = np.zeros(image.shape)
-
-	pad_height = int((kernel_row - 1) / 2)
-	pad_width = int((kernel_col - 1) / 2)
-
-	padded_image = np.zeros(
-		(image_row + (2 * pad_height), image_col + (2 * pad_width)))
-
-	padded_image[pad_height:padded_image.shape[0] - pad_height,
-				 pad_width:padded_image.shape[1] - pad_width] = image
-
-	if verbose:
-		plt.imshow(padded_image, cmap='gray')
-		plt.title("Padded Image")
-		plt.show()
-
-	for row in range(image_row):
-		for col in range(image_col):
-			output[row, col] = np.sum(
-				kernel * padded_image[row:row + kernel_row, col:col + kernel_col])
-			if average:
-				output[row, col] /= kernel.shape[0] * kernel.shape[1]
-
-	print("Output Image size : {}".format(output.shape))
-
-	if verbose:
-		plt.imshow(output, cmap='gray')
-		plt.title("Output Image using {}X{} Kernel".format(
-			kernel_row, kernel_col))
-		plt.show()
-
-	return output
-
-
-def gkernel(l=3, sig=2):
-	"""\
-	Gaussian Kernel Creator via given length and sigma
-	"""
-
-	ax = np.linspace(-(l - 1) / 2., (l - 1) / 2., l)
+	ax = np.linspace(-(size-1) / 2., (size- 1) / 2., size)
 	xx, yy = np.meshgrid(ax, ax)
 
-	kernel = np.exp(-0.5 * (np.square(xx) + np.square(yy)) / np.square(sig))
+	kernel = np.exp(-0.5 * (np.square(xx) + np.square(yy)) / np.square(sigma))
 
 	return kernel / np.sum(kernel)
 
 
-def DoG(img):
-	kernel_size = 3
-	sigma = 2
-	g_kernel = gkernel(kernel_size, sigma)
-	img_gau = cv2.filter2D(img, -1, g_kernel)
-	# img = cv2.GaussianBlur(img,(5,5),0)
-	vertical_filter = np.array([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]])
+def DoG_filter():
+	sigma = [1, 3]
+	orient = np.arange(0, 360, 20)
+	k_size = 5
 	horizontal_filter = np.array([[1, 2, 1], [0, 0, 0], [-1, -2, -1]])
-
-	x_grad = cv2.filter2D(img, -1, horizontal_filter)
-	y_grad = cv2.filter2D(img, -1, vertical_filter)
-
-	return x_grad, y_grad
+	res = []
+	# plt.figure(figsize=(16,2))
+	for i in range(len(sigma)):
+		DoG = scipy.signal.convolve2d(gauss_kernel(k_size, sigma[i]), horizontal_filter)
+		for j in range(len(orient)):
+			DoG_rot = scipy.ndimage.rotate(DoG, angle=orient[j], reshape=False)
+			res.append(DoG_rot)
+	# 		plt.subplot(len(sigma), len(orient), len(orient)*i+j+1)
+	# 		plt.imshow(res[len(orient)*i+j], cmap='gray')
+	# plt.show()
+	return res
 
 
 def gauss2d(n, sigma):
@@ -256,8 +189,8 @@ def gabor_filter(k_size, theta):
 	return res
 
 def genGabor(sz, omega, theta):
-    radius = (int(sz[0]/2.0), int(sz[1]/2.0))
-    [x, y] = np.meshgrid(range(-radius[0], radius[0]+1), range(-radius[1], radius[1]+1))
+    rad = (int(sz[0]/2.0), int(sz[1]/2.0))
+    [x, y] = np.meshgrid(range(-rad[0], rad[0]+1), range(-rad[1], rad[1]+1))
 
     x1 = x * np.cos(theta) + y * np.sin(theta)
     y1 = -x * np.sin(theta) + y * np.cos(theta)
@@ -272,7 +205,7 @@ def genGabor(sz, omega, theta):
 #Gabor Filter Bank
 def Gabor_filter_bank():
 	theta = np.arange(1.5*np.pi, 0.5*np.pi, -np.pi/8) 
-	omega = np.arange(0.6, 0.1, -0.1)
+	omega = np.arange(0.35, 0.1, -0.05)
 	params = [(t,o) for o in omega for t in theta]
 	FilterBank = []
 	gaborParams = []
@@ -290,21 +223,36 @@ def Gabor_filter_bank():
 	plt.show()
 	return FilterBank
 
+def half_disk_mask(rad):
+	# res = np.zeros((2*rad, 2*rad))
+	# for i in range():
+	# 	for j in range():
+	# a, b = rad/2, rad/2
+	# n = 7
+	# r = rad
+
+	# y,x = np.ogrid[-a:n-a, -b:n-b]
+	# mask = x*x + y*y <= r*r
+
+	# res = np.zeros((n, n))
+	# res[mask] = 1
+	hd = np.zeros((rad*2,rad*2))
+	rs = rad**2
+	for i in range(rad):
+		m = (i-rad)**2
+		for j in range(2*rad):
+			if m+(j-rad)**2 < rs:
+				hd[i,j] =1
+	return hd
+
 def main():
 	"""
 	Generate Difference of Gaussian Filter Bank: (DoG)
 	Display all the filters in this filter bank and save image as DoG.png,
 	use command "cv2.imwrite(...)"
 	"""
-	img = cv2.imread('./Phase1/BSDS500/Images/1.jpg')
-	img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-	# angles = np.arange(0, 360, 20)
-	# for i in range(16):
-	# 	img_gray_rot = scipy.ndimage.rotate(img_gray, angles[i])
-	# 	img_x_DoG, img_y_DoG = DoG(img_gray_rot)
-	# 	cv2.imshow('img_x_DoG', img_x_DoG)
-	# 	cv2.imshow('img_y_DoG', img_y_DoG)
-	# 	cv2.waitKey(0)
+	
+	DoG_bank = DoG_filter()
 	"""
 	Generate Leung-Malik Filter Bank: (LM)
 	Display all the filters in this filter bank and save image as LM.png,
@@ -339,25 +287,58 @@ def main():
 	# 	plt.axis('off')
 	# 	plt.imshow(gabor_filter_bank[i], cmap='gray')
 	# plt.show()
-	Gabor_filters = Gabor_filter_bank()
+	
+	# Gabor_filters = Gabor_filter_bank()
 	"""
 	Generate Half-disk masks
 	Display all the Half-disk masks and save image as HDMasks.png,
 	use command "cv2.imwrite(...)"
 	"""
-
+	half_disk_radii = np.array([5, 10, 20])
+	orient = np.arange(0, 360, 45)
+	mask_top_list = []
+	mask_bottom_list = []
+	for i in range(len(half_disk_radii)):
+		half_disk = half_disk_mask(half_disk_radii[i])
+		for j in range(len(orient)):
+			mask_top = scipy.ndimage.rotate(half_disk, angle=orient[j], reshape=False)
+			mask_bottom = scipy.ndimage.rotate(mask_top, angle=90, reshape=False)
+			mask_top_list.append(mask_top)
+			mask_bottom_list.append(mask_bottom)
+	# 		plt.subplot(6, 8, 16*i+j+1)
+	# 		plt.axis('off')
+	# 		plt.imshow(mask_top, cmap='gray')
+	# 		plt.subplot(6, 8, 16*i+j+1+8)
+	# 		plt.axis('off')
+	# 		plt.imshow(mask_bottom, cmap='gray')
+	# plt.show()
 	"""
 	Generate Texton Map
 	Filter image using oriented gaussian filter bank
 	"""
-
+	file_dir = "../BSDS500/Images/"
+	img_list = [i for i in os.listdir(file_dir) if i.endswith('.jpg')]
+	tex_map = []
+	img_list.sort()
+	for i in range(len(img_list)):
+		for j in range(len(DoG_bank)):
+			file_name = file_dir + img_list[i]
+			img = cv2.imread(file_name)
+			img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+			DoG = cv2.filter2D(img_gray, -1, DoG_bank[j])
+			tex_map.append(DoG)
+	tex_map = np.array(tex_map)
 	"""
 	Generate texture ID's using K-means clustering
 	Display texton map and save image as TextonMap_ImageName.png,
 	use command "cv2.imwrite('...)"
 	"""
-	k_means = sklearn.cluster.Kmeans(n_clusters=5, n_init=5)
-
+	k_means = sklearn.cluster.KMeans(n_clusters=64, n_init=4)
+	# k_means.fit(tex_map)
+	# labels = k_means.labels_
+	# tex_map = np.reshape(labels, (tex_map.shape))
+	# plt.imshow(tex_map)
+	# plt.show()
 	"""
 	Generate Texton Gradient (Tg)
 	Perform Chi-square calculation on Texton Map
