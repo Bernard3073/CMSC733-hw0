@@ -29,13 +29,12 @@ import os
 
 def gauss_kernel(size, sigma):
 
-	ax = np.linspace(-(size-1) / 2., (size- 1) / 2., size)
+	ax = np.linspace(-(size-1) / 2, (size- 1) / 2, size)
 	xx, yy = np.meshgrid(ax, ax)
-
-	kernel = np.exp(-0.5 * (np.square(xx) + np.square(yy)) / np.square(sigma))
-
-	return kernel / np.sum(kernel)
-
+	# kernel = np.exp(-0.5 * (np.square(xx) + np.square(yy)) / np.square(sigma))
+	# return kernel / np.sum(kernel)
+	kernel = (1/np.sqrt(2*np.pi*(sigma**2)))*np.exp(-(xx**2 + yy**2)/(2*(sigma**2)))
+	return kernel
 
 def DoG_filter():
 	sigma = [1, 3]
@@ -43,15 +42,11 @@ def DoG_filter():
 	k_size = 5
 	horizontal_filter = np.array([[1, 2, 1], [0, 0, 0], [-1, -2, -1]])
 	res = []
-	# plt.figure(figsize=(16,2))
 	for i in range(len(sigma)):
 		DoG = scipy.signal.convolve2d(gauss_kernel(k_size, sigma[i]), horizontal_filter)
 		for j in range(len(orient)):
 			DoG_rot = scipy.ndimage.rotate(DoG, angle=orient[j], reshape=False)
 			res.append(DoG_rot)
-	# 		plt.subplot(len(sigma), len(orient), len(orient)*i+j+1)
-	# 		plt.imshow(res[len(orient)*i+j], cmap='gray')
-	# plt.show()
 	return res
 
 
@@ -87,19 +82,6 @@ def log2d(n, sigma):
 	n = (1/np.sqrt(2*np.pi*var))*np.exp(-m/(2*var))
 	output = n*(m - var)/(var**2)
 	return output
-
-
-def binary(img, bin_value):
-	binary_img = img * 0
-	for r in range(0, img.shape[0]):
-		for c in range(0, img.shape[1]):
-			if img[r, c] == bin_value:
-				binary_img[r, c] = 1
-			else:
-				binary_img[r, c] = 0
-	return binary_img
-
-
 
 def makefilter(scale, phasex, phasey, pts, sup):
 	gx = gauss1d(3*scale, 0, pts[0, ...], phasex)
@@ -165,8 +147,8 @@ def gabor_filter(k_size, theta):
 	a convolution filter representing a combination of gaussian and a sinusoidal term
 	'''
 	sigma = 500
-	gamma = 0.1
-	phi = 0.8
+	gamma = 1
+	phi = 1
 	lamda = theta
 	x = y = np.arange(-k_size, k_size+1)
 	x_prime = x * np.cos(theta) + y * np.sin(theta)
@@ -177,7 +159,7 @@ def gabor_filter(k_size, theta):
 	return res
 
 def genGabor(sz, omega, theta):
-    rad = (int(sz[0]/2.0), int(sz[1]/2.0))
+    rad = (int(sz[0]/2), int(sz[1]/2))
     [x, y] = np.meshgrid(range(-rad[0], rad[0]+1), range(-rad[1], rad[1]+1))
 
     x1 = x * np.cos(theta) + y * np.sin(theta)
@@ -196,19 +178,16 @@ def Gabor_filter_bank():
 	omega = np.arange(0.35, 0.1, -0.05)
 	params = [(t,o) for o in omega for t in theta]
 	FilterBank = []
-	gaborParams = []
 	for (theta, omega) in params:
-		gaborParam = {'omega':omega, 'theta':theta, 'sz':(128, 128)}
 		Gabor = genGabor((128,128),omega,theta)
 		FilterBank.append(Gabor)
-		gaborParams.append(gaborParam)
-
-	# plt.figure()
-	# n = len(FilterBank)
-	# for i in range(n):
-	# 	plt.subplot(5,8,i+1)
-	# 	plt.axis('off'); plt.imshow(FilterBank[i],cmap='gray')
-	# plt.show()
+	plt.figure()
+	n = len(FilterBank)
+	for i in range(n):
+		plt.subplot(5,8,i+1)
+		plt.axis('off')
+		plt.imshow(FilterBank[i],cmap='gray')
+	plt.show()
 	return FilterBank
 
 def half_disk_mask(rad):
@@ -252,21 +231,28 @@ def main():
 	Display all the filters in this filter bank and save image as DoG.png,
 	use command "cv2.imwrite(...)"
 	"""
-	
 	DoG_bank = DoG_filter()
+	plt.figure(figsize=(16,2))
+	for i in range(2):
+		for j in range(16):
+			plt.subplot(2, 16, 16*i+j+1)
+			plt.axis('off')
+			plt.imshow(DoG_bank[16*i+j], cmap='gray')
+	plt.savefig('DoG.png')
+	plt.show()
 	"""
 	Generate Leung-Malik Filter Bank: (LM)
 	Display all the filters in this filter bank and save image as LM.png,
 	use command "cv2.imwrite(...)"
 	"""
-	scales_s = np.array([1, math.sqrt(2), 2, 2*math.sqrt(2)])
 	LM_bank = LM_filter()
-	# plt.figure(figsize=(6, 8))
-	# for i in range(0, 48):
-	# 	plt.subplot(9, 6, i+1)
-	# 	plt.axis('off')
-	# 	plt.imshow(img_lm[:, :, i], cmap='gray')
-	# plt.show()
+	plt.figure(figsize=(6, 8))
+	for i in range(0, 48):
+		plt.subplot(9, 6, i+1)
+		plt.axis('off')
+		plt.imshow(LM_bank[:, :, i], cmap='gray')
+	plt.savefig('LM.png')
+	plt.show()
 
 	"""
 	Generate Gabor Filter Bank: (Gabor)
@@ -321,13 +307,14 @@ def main():
 			mask_2 = scipy.ndimage.rotate(mask_1, angle=90, reshape=False)
 			mask_1_list.append(mask_1)
 			mask_2_list.append(mask_2)
-	# 		plt.subplot(6, 8, 16*i+j+1)
-	# 		plt.axis('off')
-	# 		plt.imshow(mask_1, cmap='gray')
-	# 		plt.subplot(6, 8, 16*i+j+1+8)
-	# 		plt.axis('off')
-	# 		plt.imshow(mask_2, cmap='gray')
-	# plt.show()
+			plt.subplot(6, 8, 16*i+j+1)
+			plt.axis('off')
+			plt.imshow(mask_1, cmap='gray')
+			plt.subplot(6, 8, 16*i+j+1+8)
+			plt.axis('off')
+			plt.imshow(mask_2, cmap='gray')
+	plt.savefig('HDMasks.png')
+	plt.show()
 	"""
 	Generate Texton Map
 	Filter image using oriented gaussian filter bank
@@ -362,6 +349,7 @@ def main():
 		# labels = k_means.predict(tex_map)
 		tex_map = np.reshape(labels, (img_gray.shape))
 		plt.imshow(tex_map)
+		plt.savefig('TextonMap_ImageName.png')
 		plt.show()
 		"""
 		Generate Texton Gradient (Tg)
@@ -372,6 +360,7 @@ def main():
 		Tg = chi_square(tex_map, 64, mask_1_list, mask_2_list)
 		Tg = np.mean(Tg, axis=2)
 		plt.imshow(Tg)
+		plt.savefig('Tg_IMageName.png')
 		plt.show()
 
 		"""
@@ -385,9 +374,7 @@ def main():
 		br_map = np.reshape(labels, (img_gray.shape[0], img_gray.shape[1]))
 		low = np.min(br_map)
 		high = np.max(br_map)
-		br_map_f = 255*(br_map - low)/np.float(high - low)
-		plt.imshow(br_map_f, cmap='gray')
-		plt.show()
+		br_map = 255*(br_map - low)/np.float(high - low)
 
 		"""
 		Generate Brightness Gradient (Bg)
@@ -399,6 +386,7 @@ def main():
 		Bg = np.mean(Bg, axis=2)
 		plt.imshow(Bg, cmap='gray')
 		plt.show()
+		plt.savefig('Bg_ImageName.png')
 
 		"""
 		Generate Color Map
@@ -408,8 +396,6 @@ def main():
 		k_means.fit(color_map)
 		labels = k_means.labels_
 		color_map = np.reshape(labels, (img.shape[0], img.shape[1]))
-		plt.imshow(color_map)
-		plt.show()
 
 		"""
 		Generate Color Gradient (Cg)

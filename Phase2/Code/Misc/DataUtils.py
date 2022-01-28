@@ -66,7 +66,9 @@ def ReadLabels(LabelsPathTrain):
     else:
         TrainLabels = open(LabelsPathTrain, 'r')
         TrainLabels = TrainLabels.read()
-        TrainLabels = map(float, TrainLabels.split())
+        # In python 3, map returns an iterable of type map, not a subscriptible. 
+        # To force a list result, turn it into list using list() 
+        TrainLabels = list(map(float, TrainLabels.split()))
 
     return TrainLabels
     

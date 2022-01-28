@@ -22,7 +22,7 @@ import cv2
 import os
 import sys
 import glob
-import Misc.ImageUtils as iu
+# import Misc.ImageUtils as iu
 import random
 from skimage import data, exposure, img_as_float
 import matplotlib.pyplot as plt
@@ -32,12 +32,13 @@ import numpy as np
 import time
 import argparse
 import shutil
-from StringIO import StringIO
+# from StringIO import StringIO
 import string
 import math as m
 from sklearn.metrics import confusion_matrix
 from tqdm import tqdm
-
+import pandas as pd
+import seaborn as sns
 
 # Don't generate pyc codes
 sys.dont_write_bytecode = True
@@ -83,7 +84,10 @@ def ReadImages(ImageSize, DataPath):
     # Add any standardization or cropping/resizing if used in Training here!
     ##########################################################################
 
-    I1S = iu.StandardizeInputs(np.float32(I1))
+    # I1S = iu.StandardizeInputs(np.float32(I1))
+    I1S = np.float32(I1) / 255
+    I1S -= 0.5
+    I1S *= 2
 
     I1Combined = np.expand_dims(I1S, axis=0)
 
@@ -161,8 +165,8 @@ def ConfusionMatrix(LabelsTrue, LabelsPred):
     """
 
     # Get the confusion matrix using sklearn.
-    cm = confusion_matrix(y_true=LabelTest,  # True class for test-set.
-                          y_pred=LabelPred)  # Predicted class.
+    cm = confusion_matrix(y_true=LabelsTrue,  # True class for test-set.
+                          y_pred=LabelsPred)  # Predicted class.
 
     # Print the confusion matrix as text.
     for i in range(10):
@@ -172,7 +176,9 @@ def ConfusionMatrix(LabelsTrue, LabelsPred):
     class_numbers = [" ({0})".format(i) for i in range(10)]
     print("".join(class_numbers))
 
-    print('Accuracy: '+ str(Accuracy(LabelPred, LabelTest)), '%')
+    print('Accuracy: '+ str(Accuracy(LabelsTrue, LabelsPred)), '%')
+
+    return cm
 
         
 def main():
@@ -185,8 +191,8 @@ def main():
 
     # Parse Command Line arguments
     Parser = argparse.ArgumentParser()
-    Parser.add_argument('--ModelPath', dest='ModelPath', default='/home/chahatdeep/Downloads/Checkpoints/144model.ckpt', help='Path to load latest model from, Default:ModelPath')
-    Parser.add_argument('--BasePath', dest='BasePath', default='/home/chahatdeep/Downloads/aa/CMSC733HW0/CIFAR10/Test/', help='Path to load images from, Default:BasePath')
+    Parser.add_argument('--ModelPath', dest='ModelPath', default='/home/bernard/CMSC733/hw0/Phase2/Checkpoints/', help='Path to load latest model from, Default:ModelPath')
+    Parser.add_argument('--BasePath', dest='BasePath', default='/home/bernard/CMSC733/hw0/Phase2/CIFAR10/Test/', help='Path to load images from, Default:BasePath')
     Parser.add_argument('--LabelsPath', dest='LabelsPath', default='./TxtFiles/LabelsTest.txt', help='Path of labels file, Default:./TxtFiles/LabelsTest.txt')
     Args = Parser.parse_args()
     ModelPath = Args.ModelPath
@@ -204,7 +210,12 @@ def main():
 
     # Plot Confusion Matrix
     LabelsTrue, LabelsPred = ReadLabels(LabelsPath, LabelsPathPred)
-    ConfusionMatrix(LabelsTrue, LabelsPred)
+    cm = ConfusionMatrix(LabelsTrue, LabelsPred)
+    df_cm = pd.DataFrame(cm, range(10),range(10))
+    #plt.figure(figsize = (10,7))
+    sns.set(font_scale=1.4)#for label size
+    sns.heatmap(df_cm, annot=True,annot_kws={"size": 16})# font size
+    plt.show()
      
 if __name__ == '__main__':
     main()
