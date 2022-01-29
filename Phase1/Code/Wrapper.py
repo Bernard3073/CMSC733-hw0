@@ -6,12 +6,12 @@ Geometric Computer Vision
 Homework 0: Alohomora: Phase 1 Starter Code
 
 
-Author(s): 
+Author(s):
 Nitin J. Sanket (nitin@terpmail.umd.edu)
 PhD Candidate in Computer Science,
 University of Maryland, College Park
 
-Chahat Deep Singh (chahat@terpmail.umd.edu) 
+Chahat Deep Singh (chahat@terpmail.umd.edu)
 PhD Student in Computer Science,
 University of Maryland, College Park
 """
@@ -27,36 +27,28 @@ import matplotlib.pyplot as plt
 import sklearn.cluster
 import os
 
-def gauss_kernel(size, sigma):
-
-	ax = np.linspace(-(size-1) / 2, (size- 1) / 2, size)
-	xx, yy = np.meshgrid(ax, ax)
-	# kernel = np.exp(-0.5 * (np.square(xx) + np.square(yy)) / np.square(sigma))
-	# return kernel / np.sum(kernel)
-	kernel = (1/np.sqrt(2*np.pi*(sigma**2)))*np.exp(-(xx**2 + yy**2)/(2*(sigma**2)))
-	return kernel
 
 def DoG_filter():
 	sigma = [1, 3]
 	orient = np.arange(0, 360, 20)
 	k_size = 5
 	horizontal_filter = np.array([[1, 2, 1], [0, 0, 0], [-1, -2, -1]])
+	vertical_filter = np.array([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]])
 	res = []
 	for i in range(len(sigma)):
-		DoG = scipy.signal.convolve2d(gauss_kernel(k_size, sigma[i]), horizontal_filter)
+		DoG = scipy.signal.convolve2d(gauss2d(k_size, sigma[i]), vertical_filter)
 		for j in range(len(orient)):
-			DoG_rot = scipy.ndimage.rotate(DoG, angle=orient[j], reshape=False)
+			DoG_rot = scipy.ndimage.rotate(DoG, angle=orient[j])
 			res.append(DoG_rot)
 	return res
 
 
-def gauss2d(n, sigma):
-	size = int((n-1)/2)
-	var = sigma**2
-	m = np.asarray([[x**2 + y**2 for x in range(-size, size+1)]
-				   for y in range(-size, size+1)])
-	output = (1/np.sqrt(2*np.pi*var))*np.exp(-m/(2*var))
-	return output
+def gauss2d(size, sigma):
+	ax = np.linspace(-(size-1) / 2, (size - 1) / 2, size)
+	xx, yy = np.meshgrid(ax, ax)
+	kernel = (1/np.sqrt(2*np.pi*(sigma**2))) * \
+	          np.exp(-(xx**2 + yy**2)/(2*(sigma**2)))
+	return kernel
 
 
 def gauss1d(sigma, mean, x, order):
@@ -83,6 +75,7 @@ def log2d(n, sigma):
 	output = n*(m - var)/(var**2)
 	return output
 
+
 def makefilter(scale, phasex, phasey, pts, sup):
 	gx = gauss1d(3*scale, 0, pts[0, ...], phasex)
 	gy = gauss1d(scale, 0, pts[1, ...], phasey)
@@ -94,12 +87,12 @@ def makefilter(scale, phasex, phasey, pts, sup):
 def LM_filter():
 	sup = 49
 	scalex = np.sqrt(2) * np.array([1, 2, 3])
-	norient = 6
-	nrotinv = 12
+	num_orient = 6
+	num_rotinv = 12
 
-	nbar = len(scalex)*norient
-	nedge = len(scalex)*norient
-	nf = nbar+nedge+nrotinv
+	nbar = len(scalex)*num_orient
+	nedge = len(scalex)*num_orient
+	nf = nbar+nedge+num_rotinv
 	F = np.zeros([sup, sup, nf])
 	hsup = (sup - 1)/2
 
@@ -113,8 +106,8 @@ def LM_filter():
 
 	count = 0
 	for scale in range(len(scalex)):
-		for orient in range(norient):
-			angle = (np.pi * orient)/norient
+		for orient in range(num_orient):
+			angle = (np.pi * orient)/num_orient
 			c = np.cos(angle)
 			s = np.sin(angle)
 			rotpts = [[c+0, -s+0], [s+0, c+0]]
@@ -142,19 +135,28 @@ def LM_filter():
 	return F
 
 
-def gabor_filter(k_size, theta):
+def gabor_filter(sigma, theta, lamda, psi, gamma):
 	'''
 	a convolution filter representing a combination of gaussian and a sinusoidal term
 	'''
-	sigma = 500
-	gamma = 1
-	phi = 1
-	lamda = theta
-	x = y = np.arange(-k_size, k_size+1)
-	x_prime = x * np.cos(theta) + y * np.sin(theta)
-	y_prime = x * np.sin(theta) + y * np.cos(theta)
+	sigma_x = sigma
+	sigma_y = float(sigma) / gamma
 
-	res = np.exp(-(x_prime**2 + (gamma**2) * (y_prime**2))/(2*(sigma**2))) * np.cos(2*np.pi *(x_prime/lamda) + phi)
+	# Bounding box
+	nstds = 3 # Number of standard deviation sigma
+	xmax = max(abs(nstds * sigma_x * np.cos(theta)), abs(nstds * sigma_y * np.sin(theta)))
+	xmax = np.ceil(max(1, xmax))
+	ymax = max(abs(nstds * sigma_x * np.sin(theta)), abs(nstds * sigma_y * np.cos(theta)))
+	ymax = np.ceil(max(1, ymax))
+	xmin = -xmax
+	ymin = -ymax
+	(y, x) = np.meshgrid(np.arange(ymin, ymax + 1), np.arange(xmin, xmax + 1))
+
+	# Rotation
+	x_theta = x * np.cos(theta) + y * np.sin(theta)
+	y_theta = -x * np.sin(theta) + y * np.cos(theta)
+
+	res = np.exp(-0.5 * (x_theta ** 2 / sigma_x ** 2 + y_theta ** 2 / sigma_y ** 2)) * np.cos(2 * np.pi / lamda * x_theta + psi)
 	
 	return res
 
@@ -172,23 +174,36 @@ def genGabor(sz, omega, theta):
     gabor = gauss * sinusoid
     return gabor
 
-#Gabor Filter Bank
+# Gabor Filter Bank
 def Gabor_filter_bank():
-	theta = np.arange(1.5*np.pi, 0.5*np.pi, -np.pi/8) 
-	omega = np.arange(0.35, 0.1, -0.05)
-	params = [(t,o) for o in omega for t in theta]
-	FilterBank = []
-	for (theta, omega) in params:
-		Gabor = genGabor((128,128),omega,theta)
-		FilterBank.append(Gabor)
-	plt.figure()
-	n = len(FilterBank)
-	for i in range(n):
-		plt.subplot(5,8,i+1)
-		plt.axis('off')
-		plt.imshow(FilterBank[i],cmap='gray')
-	plt.show()
-	return FilterBank
+	# theta = np.arange(1.5*np.pi, 0.5*np.pi, -np.pi/8) 
+	# omega = np.arange(0.35, 0.1, -0.05)
+	# params = [(t,o) for o in omega for t in theta]
+	# FilterBank = []
+	# for (theta, omega) in params:
+	# 	Gabor = genGabor((128,128),omega,theta)
+	# 	FilterBank.append(Gabor)
+	# plt.figure()
+	# n = len(FilterBank)
+	# for i in range(n):
+	# 	plt.subplot(5,8,i+1)
+	# 	plt.axis('off')
+	# 	plt.imshow(FilterBank[i],cmap='gray')
+	# plt.show()
+	# return FilterBank
+	res = []
+	num_filters = 8
+	psi = gamma = 1
+	lamda = 1
+	theta = 0.25
+	sigma = [6, 5, 4, 3, 2]
+	for j in sigma:
+		gabor = gabor_filter(j, theta, lamda, psi, gamma)
+		ang = np.linspace(90, 450, num_filters)
+		for i in range(num_filters):
+			image = scipy.ndimage.rotate(gabor, angle=ang[i])
+			res.append(image)
+	return res
 
 def half_disk_mask(rad):
 	# res = np.zeros((2*rad, 2*rad))
@@ -232,27 +247,27 @@ def main():
 	use command "cv2.imwrite(...)"
 	"""
 	DoG_bank = DoG_filter()
-	plt.figure(figsize=(16,2))
-	for i in range(2):
-		for j in range(16):
-			plt.subplot(2, 16, 16*i+j+1)
-			plt.axis('off')
-			plt.imshow(DoG_bank[16*i+j], cmap='gray')
-	plt.savefig('DoG.png')
-	plt.show()
+	# plt.figure(figsize=(16,2))
+	# for i in range(2):
+	# 	for j in range(16):
+	# 		plt.subplot(2, 16, 16*i+j+1)
+	# 		plt.axis('off')
+	# 		plt.imshow(DoG_bank[16*i+j], cmap='gray')
+	# plt.savefig('DoG.png')
+	# plt.show()
 	"""
 	Generate Leung-Malik Filter Bank: (LM)
 	Display all the filters in this filter bank and save image as LM.png,
 	use command "cv2.imwrite(...)"
 	"""
 	LM_bank = LM_filter()
-	plt.figure(figsize=(6, 8))
-	for i in range(0, 48):
-		plt.subplot(9, 6, i+1)
-		plt.axis('off')
-		plt.imshow(LM_bank[:, :, i], cmap='gray')
-	plt.savefig('LM.png')
-	plt.show()
+	# plt.figure()
+	# for i in range(48):
+	# 	plt.subplot(4, 12, i+1)
+	# 	plt.axis('off')
+	# 	plt.imshow(LM_bank[:, :, i], cmap='binary')
+	# plt.savefig('LM.png')
+	# plt.show()
 
 	"""
 	Generate Gabor Filter Bank: (Gabor)
@@ -276,6 +291,13 @@ def main():
 	# plt.show()
 	
 	Gabor_bank = Gabor_filter_bank()
+	# plt.figure()
+	# for i in range(len(Gabor_bank)):
+	# 	plt.subplot(5, 8, i+1)
+	# 	plt.axis('off')
+	# 	plt.imshow(Gabor_bank[i],cmap='gray')
+	# plt.savefig('Gabor.png')
+	# plt.show()
 
 	filter_bank = []
 	count = 0
@@ -307,14 +329,14 @@ def main():
 			mask_2 = scipy.ndimage.rotate(mask_1, angle=90, reshape=False)
 			mask_1_list.append(mask_1)
 			mask_2_list.append(mask_2)
-			plt.subplot(6, 8, 16*i+j+1)
-			plt.axis('off')
-			plt.imshow(mask_1, cmap='gray')
-			plt.subplot(6, 8, 16*i+j+1+8)
-			plt.axis('off')
-			plt.imshow(mask_2, cmap='gray')
-	plt.savefig('HDMasks.png')
-	plt.show()
+	# 		plt.subplot(6, 8, 16*i+j+1)
+	# 		plt.axis('off')
+	# 		plt.imshow(mask_1, cmap='gray')
+	# 		plt.subplot(6, 8, 16*i+j+1+8)
+	# 		plt.axis('off')
+	# 		plt.imshow(mask_2, cmap='gray')
+	# plt.savefig('HDMasks.png')
+	# plt.show()
 	"""
 	Generate Texton Map
 	Filter image using oriented gaussian filter bank
@@ -323,14 +345,13 @@ def main():
 	data = [i for i in os.listdir(file_dir) if i.endswith('.jpg')]
 	data.sort()
 	# img_list = []
-	scale_percent = 40
+	# scale_percent = 40
 	for i in range(len(data)):
 		file_name = file_dir + data[i]
 		img = cv2.imread(file_name)
-		# img_list.append(img)
-		width = int(img.shape[1] * scale_percent / 100)
-		height = int(img.shape[0] * scale_percent / 100)
-		img = cv2.resize(img, (width, height), interpolation = cv2.INTER_AREA)
+		# width = int(img.shape[1] * scale_percent / 100)
+		# height = int(img.shape[0] * scale_percent / 100)
+		# img = cv2.resize(img, (width, height), interpolation = cv2.INTER_AREA)
 		img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 		tex_map = np.zeros((img_gray.size, len(filter_bank)))
 		for j in range(len(filter_bank)):
@@ -349,7 +370,7 @@ def main():
 		# labels = k_means.predict(tex_map)
 		tex_map = np.reshape(labels, (img_gray.shape))
 		plt.imshow(tex_map)
-		plt.savefig('TextonMap_ImageName.png')
+		plt.savefig('TextonMap_'+ data[i][:-4] +'.png')
 		plt.show()
 		"""
 		Generate Texton Gradient (Tg)
@@ -360,7 +381,7 @@ def main():
 		Tg = chi_square(tex_map, 64, mask_1_list, mask_2_list)
 		Tg = np.mean(Tg, axis=2)
 		plt.imshow(Tg)
-		plt.savefig('Tg_IMageName.png')
+		plt.savefig('Tg_'+ data[i][:-4] +'.png')
 		plt.show()
 
 		"""
@@ -385,8 +406,8 @@ def main():
 		Bg = chi_square(br_map, 16, mask_1_list, mask_2_list)
 		Bg = np.mean(Bg, axis=2)
 		plt.imshow(Bg, cmap='gray')
+		plt.savefig('Bg_'+ data[i][:-4] +'.png')
 		plt.show()
-		plt.savefig('Bg_ImageName.png')
 
 		"""
 		Generate Color Map
@@ -415,9 +436,9 @@ def main():
 		file_name = '../BSDS500/SobelBaseline/' + data[i][:-4] + '.png'
 		sobel_base = cv2.imread(file_name, 0)
 		# img_list.append(img)
-		width = int(sobel_base.shape[1] * scale_percent / 100)
-		height = int(sobel_base.shape[0] * scale_percent / 100)
-		sobel_base = cv2.resize(sobel_base, (width, height), interpolation = cv2.INTER_AREA)
+		# width = int(sobel_base.shape[1] * scale_percent / 100)
+		# height = int(sobel_base.shape[0] * scale_percent / 100)
+		# sobel_base = cv2.resize(sobel_base, (width, height), interpolation = cv2.INTER_AREA)
 		"""
 		Read Canny Baseline
 		use command "cv2.imread(...)"
@@ -425,9 +446,9 @@ def main():
 		file_name = '../BSDS500/CannyBaseline/' + data[i][:-4] + '.png'
 		canny_base = cv2.imread(file_name, 0)
 		# img_list.append(img)
-		width = int(canny_base.shape[1] * scale_percent / 100)
-		height = int(canny_base.shape[0] * scale_percent / 100)
-		canny_base = cv2.resize(canny_base, (width, height), interpolation = cv2.INTER_AREA)
+		# width = int(ca`nny_base.shape[1] * scale_percent / 100)
+		# height = int(canny_base.shape[0] * scale_percent / 100)
+		# canny_base = cv2.resiz`e(canny_base, (width, height), interpolation = cv2.INTER_AREA)
 		"""
 		Combine responses to get pb-lite output
 		Display PbLite and save image as PbLite_ImageName.png
