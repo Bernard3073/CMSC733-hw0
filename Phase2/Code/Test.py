@@ -94,7 +94,7 @@ def ReadImages(ImageSize, DataPath):
     return I1Combined, I1
                 
 
-def TestOperation(ImgPH, ImageSize, ModelPath, DataPath, LabelsPathPred):
+def TestOperation(ImgPH, ImageSize, ModelPath, DataPath, LabelsPathPred, NetworkType):
     """
     Inputs: 
     ImgPH is the Input Image placeholder
@@ -107,7 +107,7 @@ def TestOperation(ImgPH, ImageSize, ModelPath, DataPath, LabelsPathPred):
     """
     Length = ImageSize[0]
     # Predict output with forward pass, MiniBatchSize for Test is 1
-    _, prSoftMaxS = CIFAR10Model(ImgPH, ImageSize, 1)
+    _, prSoftMaxS = CIFAR10Model(ImgPH, ImageSize, 1, NetworkType)
 
     # Setup Saver
     Saver = tf.train.Saver()
@@ -177,7 +177,9 @@ def ConfusionMatrix(LabelsTrue, LabelsPred):
     print("".join(class_numbers))
 
     print('Accuracy: '+ str(Accuracy(LabelsTrue, LabelsPred)), '%')
-
+    Txtfile = open("Test_graph/Accuracy.txt", "a")
+    Txtfile.write('Accuracy: '+ str(Accuracy(LabelsTrue, LabelsPred)) + '%')
+    Txtfile.close()
     return cm
 
         
@@ -194,29 +196,80 @@ def main():
     Parser.add_argument('--ModelPath', dest='ModelPath', default='/home/bernard/CMSC733/hw0/Phase2/Checkpoints/', help='Path to load latest model from, Default:ModelPath')
     Parser.add_argument('--BasePath', dest='BasePath', default='/home/bernard/CMSC733/hw0/Phase2/CIFAR10/Test/', help='Path to load images from, Default:BasePath')
     Parser.add_argument('--LabelsPath', dest='LabelsPath', default='./TxtFiles/LabelsTest.txt', help='Path of labels file, Default:./TxtFiles/LabelsTest.txt')
+    Parser.add_argument('--NetworkType', default='my_NN',
+                        help='Path to save Logs for Tensorboard, Default=my_NN')
     Args = Parser.parse_args()
-    ModelPath = Args.ModelPath
-    BasePath = Args.BasePath
-    LabelsPath = Args.LabelsPath
+    # ModelPath = Args.ModelPath + Args.NetworkType + '/'+'49model.ckpt'
+    # BasePath = Args.BasePath
+    # LabelsPath = Args.LabelsPath
+    # NetworkType = Args.NetworkType
+    
 
-    # Setup all needed parameters including file reading
-    ImageSize, DataPath = SetupAll(BasePath)
+    # # Setup all needed parameters including file reading
+    # ImageSize, DataPath = SetupAll(BasePath)
 
-    # Define PlaceHolder variables for Input and Predicted output
-    ImgPH = tf.placeholder('float', shape=(1, ImageSize[0], ImageSize[1], 3))
-    LabelsPathPred = './TxtFiles/PredOut.txt' # Path to save predicted labels
+    # # Define PlaceHolder variables for Input and Predicted output
+    # ImgPH = tf.placeholder('float', shape=(1, ImageSize[0], ImageSize[1], 3))
+    # LabelsPathPred = './TxtFiles/PredOut.txt' # Path to save predicted labels
 
-    TestOperation(ImgPH, ImageSize, ModelPath, DataPath, LabelsPathPred)
+    # # TestOperation(ImgPH, ImageSize, ModelPath, DataPath, LabelsPathPred, NetworkType)
 
-    # Plot Confusion Matrix
-    LabelsTrue, LabelsPred = ReadLabels(LabelsPath, LabelsPathPred)
+    # # Plot Confusion Matrix
+    # LabelsTrue, LabelsPred = ReadLabels(LabelsPath, LabelsPathPred)
+    # cm = ConfusionMatrix(LabelsTrue, LabelsPred)
+    # df_cm = pd.DataFrame(cm, range(10),range(10))
+    # #plt.figure(figsize = (10,7))
+    # sns.set(font_scale=1.4)#for label size
+    # sns.heatmap(df_cm, annot=True,annot_kws={"size": 16})# font size
+    # plt.show()
+    accTestOverEpochs=np.array([0,0])
+    for epoch in tqdm(range(50)):
+        # Parse Command Line arguments
+        tf.reset_default_graph()
+
+        ModelPath = Args.ModelPath + Args.NetworkType + '/' + str(epoch)+'model.ckpt'
+        # print(ModelPath)
+        BasePath = Args.BasePath
+        LabelsPath = Args.LabelsPath
+
+        # Setup all needed parameters including file reading
+        ImageSize, DataPath = SetupAll(BasePath)
+
+        # Define PlaceHolder variables for Input and Predicted output
+        ImgPH = tf.placeholder('float', shape=(1, ImageSize[0], ImageSize[1], 3))
+        LabelsPathPred = './TxtFiles/PredOut.txt' # Path to save predicted labels
+
+        TestOperation(ImgPH, ImageSize, ModelPath, DataPath, LabelsPathPred, Args.NetworkType)
+
+        # Plot Confusion Matrix
+        LabelsTrue, LabelsPred = ReadLabels(LabelsPath, LabelsPathPred)
+        # for Python 3: change 'map' to 'list'
+        LabelsTrue = list(LabelsTrue)
+        LabelsPred = list(LabelsPred)
+        accuracy=Accuracy(LabelsTrue, LabelsPred)
+        accTestOverEpochs=np.vstack((accTestOverEpochs,[epoch,accuracy]))
+    plt.xlim(0,60)
+    plt.ylim(0,100)
+    plt.xlabel('Epoch')
+    plt.ylabel('Test accuracy (%)')
+    plt.subplots_adjust(hspace=0.6,wspace=0.3)
+    plt.plot(accTestOverEpochs[:,0],accTestOverEpochs[:,1])
+    plt.savefig('Test_graph/'+Args.NetworkType+'/Epoch_acc.png')
+    plt.close()
+
     cm = ConfusionMatrix(LabelsTrue, LabelsPred)
-    df_cm = pd.DataFrame(cm, range(10),range(10))
-    #plt.figure(figsize = (10,7))
-    sns.set(font_scale=1.4)#for label size
-    sns.heatmap(df_cm, annot=True,annot_kws={"size": 16})# font size
-    plt.show()
-     
+    plt.matshow(cm)
+
+    # Make various adjustments to the plot.
+    plt.colorbar()
+    tick_marks = np.arange(10)
+    plt.xticks(tick_marks, range(10))
+    plt.yticks(tick_marks, range(10))
+    plt.xlabel('Predicted')
+    plt.ylabel('True')
+    plt.savefig('Test_graph/'+Args.NetworkType+'/confusion_matrix.png')
+    plt.close() 
+
 if __name__ == '__main__':
     main()
  
