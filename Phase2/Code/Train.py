@@ -38,6 +38,7 @@ import string
 from termcolor import colored, cprint
 import math as m
 from tqdm import tqdm
+from sklearn.metrics import confusion_matrix
 
 # Don't generate pyc codes
 sys.dont_write_bytecode = True
@@ -214,8 +215,7 @@ def TrainOperation(ImgPH, LabelPH, DirNamesTrain, TrainLabels, NumTrainSamples, 
             plt.ylabel('Loss')
             plt.plot(LossOverEpochs[:,0],LossOverEpochs[:,1])
             plt.savefig('./Train_graph/'+NetworkType+'/'+NetworkType+'_Epoch_loss.png')
-            plt.close()
-
+            plt.close() 
 
 def main():
     """
@@ -230,8 +230,8 @@ def main():
                         help='Base path of images, Default:/home/bernard/CMSC733/hw0/Phase2/CIFAR10')
     Parser.add_argument('--CheckPointPath', default='../Checkpoints/',
                         help='Path to save Checkpoints, Default: ../Checkpoints/')
-    Parser.add_argument('--NumEpochs', type=int, default=50,
-                        help='Number of Epochs to Train for, Default:50')
+    Parser.add_argument('--NumEpochs', type=int, default=30,
+                        help='Number of Epochs to Train for, Default:30')
     Parser.add_argument('--DivTrain', type=int, default=1,
                         help='Factor to reduce Train data by per epoch, Default:1')
     Parser.add_argument('--MiniBatchSize', type=int, default=16,
@@ -241,7 +241,7 @@ def main():
     Parser.add_argument('--LogsPath', default='Logs/',
                         help='Path to save Logs for Tensorboard, Default=Logs/')
     Parser.add_argument('--NetworkType', default='my_NN',
-                        help='Path to save Logs for Tensorboard, Default=my_NN')
+                        help='the network architecture to train, Default=my_NN')
     Args = Parser.parse_args()
     NumEpochs = Args.NumEpochs
     BasePath = Args.BasePath
@@ -275,7 +275,6 @@ def main():
     TrainOperation(ImgPH, LabelPH, DirNamesTrain, TrainLabels, NumTrainSamples, ImageSize,
                    NumEpochs, MiniBatchSize, SaveCheckPoint, CheckPointPath,
                    DivTrain, LatestFile, BasePath, LogsPath, NetworkType)
-
 
 if __name__ == '__main__':
     main()

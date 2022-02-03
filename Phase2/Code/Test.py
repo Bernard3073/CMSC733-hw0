@@ -158,7 +158,7 @@ def ReadLabels(LabelsPathTest, LabelsPathPred):
         
     return LabelTest, LabelPred
 
-def ConfusionMatrix(LabelsTrue, LabelsPred):
+def ConfusionMatrix(LabelsTrue, LabelsPred, NetworkType):
     """
     LabelsTrue - True labels
     LabelsPred - Predicted labels
@@ -168,16 +168,20 @@ def ConfusionMatrix(LabelsTrue, LabelsPred):
     cm = confusion_matrix(y_true=LabelsTrue,  # True class for test-set.
                           y_pred=LabelsPred)  # Predicted class.
 
+    cm_txt = open("Test_graph/"+NetworkType+"_Confusion matrix.txt", "a")
     # Print the confusion matrix as text.
     for i in range(10):
         print(str(cm[i, :]) + ' ({0})'.format(i))
+        cm_ele = "&".join(str(cm[i, :]).split())
+        cm_txt.write(cm_ele + ' ({0})'.format(i)+'\n')
 
     # Print the class-numbers for easy reference.
     class_numbers = [" ({0})".format(i) for i in range(10)]
     print("".join(class_numbers))
-
+    cm_txt.write("".join(class_numbers))
+    cm_txt.close()
     print('Accuracy: '+ str(Accuracy(LabelsTrue, LabelsPred)), '%')
-    Txtfile = open("Test_graph/Accuracy.txt", "a")
+    Txtfile = open("Test_graph/"+NetworkType+"_Accuracy.txt", "a")
     Txtfile.write('Accuracy: '+ str(Accuracy(LabelsTrue, LabelsPred)) + '%')
     Txtfile.close()
     return cm
@@ -193,37 +197,19 @@ def main():
 
     # Parse Command Line arguments
     Parser = argparse.ArgumentParser()
+    Parser.add_argument('--NetworkType', default='my_NN',
+                        help='Path to save Logs for Tensorboard, Default=my_NN')
     Parser.add_argument('--ModelPath', dest='ModelPath', default='/home/bernard/CMSC733/hw0/Phase2/Checkpoints/', help='Path to load latest model from, Default:ModelPath')
     Parser.add_argument('--BasePath', dest='BasePath', default='/home/bernard/CMSC733/hw0/Phase2/CIFAR10/Test/', help='Path to load images from, Default:BasePath')
     Parser.add_argument('--LabelsPath', dest='LabelsPath', default='./TxtFiles/LabelsTest.txt', help='Path of labels file, Default:./TxtFiles/LabelsTest.txt')
-    Parser.add_argument('--NetworkType', default='my_NN',
-                        help='Path to save Logs for Tensorboard, Default=my_NN')
+    Parser.add_argument('--NumEpochs', type=int, default=30,
+                        help='Number of Epochs to Train for, Default:30')
     Args = Parser.parse_args()
-    # ModelPath = Args.ModelPath + Args.NetworkType + '/'+'49model.ckpt'
-    # BasePath = Args.BasePath
-    # LabelsPath = Args.LabelsPath
-    # NetworkType = Args.NetworkType
-    
+    NumEpochs = Args.NumEpochs
+    NetworkType = Args.NetworkType
 
-    # # Setup all needed parameters including file reading
-    # ImageSize, DataPath = SetupAll(BasePath)
-
-    # # Define PlaceHolder variables for Input and Predicted output
-    # ImgPH = tf.placeholder('float', shape=(1, ImageSize[0], ImageSize[1], 3))
-    # LabelsPathPred = './TxtFiles/PredOut.txt' # Path to save predicted labels
-
-    # # TestOperation(ImgPH, ImageSize, ModelPath, DataPath, LabelsPathPred, NetworkType)
-
-    # # Plot Confusion Matrix
-    # LabelsTrue, LabelsPred = ReadLabels(LabelsPath, LabelsPathPred)
-    # cm = ConfusionMatrix(LabelsTrue, LabelsPred)
-    # df_cm = pd.DataFrame(cm, range(10),range(10))
-    # #plt.figure(figsize = (10,7))
-    # sns.set(font_scale=1.4)#for label size
-    # sns.heatmap(df_cm, annot=True,annot_kws={"size": 16})# font size
-    # plt.show()
     accTestOverEpochs=np.array([0,0])
-    for epoch in tqdm(range(50)):
+    for epoch in tqdm(range(NumEpochs)):
         # Parse Command Line arguments
         tf.reset_default_graph()
 
@@ -239,7 +225,7 @@ def main():
         ImgPH = tf.placeholder('float', shape=(1, ImageSize[0], ImageSize[1], 3))
         LabelsPathPred = './TxtFiles/PredOut.txt' # Path to save predicted labels
 
-        TestOperation(ImgPH, ImageSize, ModelPath, DataPath, LabelsPathPred, Args.NetworkType)
+        TestOperation(ImgPH, ImageSize, ModelPath, DataPath, LabelsPathPred, NetworkType)
 
         # Plot Confusion Matrix
         LabelsTrue, LabelsPred = ReadLabels(LabelsPath, LabelsPathPred)
@@ -247,17 +233,19 @@ def main():
         LabelsTrue = list(LabelsTrue)
         LabelsPred = list(LabelsPred)
         accuracy=Accuracy(LabelsTrue, LabelsPred)
+        print('Accuracy: ' + str(accuracy) + '%\n')
         accTestOverEpochs=np.vstack((accTestOverEpochs,[epoch,accuracy]))
-    plt.xlim(0,60)
+
+    plt.xlim(0,NumEpochs)
     plt.ylim(0,100)
     plt.xlabel('Epoch')
     plt.ylabel('Test accuracy (%)')
     plt.subplots_adjust(hspace=0.6,wspace=0.3)
     plt.plot(accTestOverEpochs[:,0],accTestOverEpochs[:,1])
-    plt.savefig('Test_graph/'+Args.NetworkType+'/Epoch_acc.png')
+    plt.savefig('Test_graph/'+NetworkType+'_Epoch_acc.png')
     plt.close()
 
-    cm = ConfusionMatrix(LabelsTrue, LabelsPred)
+    cm = ConfusionMatrix(LabelsTrue, LabelsPred,NetworkType)
     plt.matshow(cm)
 
     # Make various adjustments to the plot.
@@ -267,7 +255,7 @@ def main():
     plt.yticks(tick_marks, range(10))
     plt.xlabel('Predicted')
     plt.ylabel('True')
-    plt.savefig('Test_graph/'+Args.NetworkType+'/confusion_matrix.png')
+    plt.savefig('Test_graph/'+NetworkType+'_confusion_matrix.png')
     plt.close() 
 
 if __name__ == '__main__':
